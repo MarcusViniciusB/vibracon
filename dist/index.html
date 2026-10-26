@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#eceef1">
+<meta name="description" content="Vibra: inspeção visual de vibrações em estruturas industriais por amplificação de movimento em vídeo. Equipe OhmCinética, Desafio Vibracon, HackatOhm CEFET.">
+<title>Vibra · OhmCinética</title>
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=0.8.0">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar__in">
+    <a class="brand" href="./" aria-label="Vibra, início">
+      <img src="assets/ohmcinetica-icon-dark.png" alt="" width="34" height="34">
+      <span><b>Vibra</b><small>por OhmCinética</small></span>
+    </a>
+    <p class="topbar__ctx">Desafio Vibracon, HackatOhm CEFET 2026</p>
+  </div>
+</header>
+
+<main class="page">
+
+  <section class="intro">
+    <h1>A estrutura se move. Nem sempre vemos.</h1>
+    <p>Grave ou importe um vídeo de uma peneira, pórtico ou tubulação, selecione a região e a faixa de frequência, e veja a vibração amplificada ao lado do original. O processamento acontece no próprio aparelho; o vídeo não é enviado.</p>
+  </section>
+
+  <ol class="steps" id="flow" aria-label="Etapas">
+    <li data-step="1" data-target="sec-source"><span>1</span>Vídeo</li>
+    <li data-step="2" data-target="sec-region"><span>2</span>Região</li>
+    <li data-step="3" data-target="sec-filter"><span>3</span>Frequência</li>
+    <li data-step="4" data-target="sec-gain"><span>4</span>Amplificação</li>
+  </ol>
+
+  <div class="dash">
+
+    <!-- Controles -->
+    <aside class="controls" aria-label="Parâmetros">
+
+      <section class="sec" id="sec-source">
+        <h2><span>1</span>Vídeo de entrada</h2>
+        <label class="drop" for="file">
+          <b>Importar vídeo</b>
+          <small>MP4 ou MOV curto, câmera parada</small>
+        </label>
+        <input id="file" type="file" accept="video/*" hidden>
+        <button id="demo" class="btn btn--line btn--block" type="button">Usar régua de demonstração (4 Hz)</button>
+        <p id="sourceInfo" class="note">Comece pela demonstração ou importe uma gravação curta e estável.</p>
+        <p id="timingInfo" class="note note--mono"></p>
+
+        <fieldset class="seg-box" id="segBox">
+          <legend>Trecho analisado</legend>
+          <div class="row2">
+            <label class="field">Início (s)<input id="start" type="number" value="0" min="0" step="any" inputmode="decimal"></label>
+            <label class="field">Quadros
+              <select id="count"><option value="32">32</option><option value="64" selected>64</option><option value="128">128</option></select>
+            </label>
+          </div>
+          <div class="seg-status" id="segStatus" data-tone="idle">
+            <span class="seg-status__mode" id="segMode">Escolha manual</span>
+            <p id="segText">Defina o início e a quantidade de quadros.</p>
+          </div>
+          <button id="regular" class="btn btn--line btn--block" type="button" hidden>Sugerir trecho regular</button>
+          <p class="note" id="regularHint" hidden>A sugestão mantém a quantidade de quadros e os FPS; altera só o início.</p>
+          <label id="gapWrap" class="check check--warn" hidden><input id="gapConfirm" type="checkbox"><span>Entendo que este trecho tem lacunas e quero processá-lo mesmo assim.</span></label>
+        </fieldset>
+      </section>
+
+      <section class="sec" id="sec-region">
+        <h2><span>2</span>Região de interesse</h2>
+        <p class="note">Contorne a peça no quadro <b>Original</b>, com folga para o movimento.</p>
+        <div class="row2">
+          <button id="clear" class="btn btn--line" type="button">Limpar</button>
+          <button id="all" class="btn btn--line" type="button">Imagem inteira</button>
+        </div>
+        <p id="selectionInfo" class="note">A imagem inteira está selecionada.</p>
+      </section>
+
+      <section class="sec" id="sec-filter">
+        <h2><span>3</span>Faixa de frequência</h2>
+        <div class="row2">
+          <label class="field">De (Hz)<input id="lo" type="number" value="2" min="0.1" step="0.1" inputmode="decimal"></label>
+          <label class="field">Até (Hz)<input id="hi" type="number" value="6" min="0.2" step="0.1" inputmode="decimal"></label>
+        </div>
+        <div class="band" aria-hidden="true">
+          <div class="band__track"><div class="band__pass" id="bandPass"></div></div>
+          <div class="band__scale"><span>0 Hz</span><span id="bandNyq">16 Hz</span></div>
+        </div>
+        <p class="note" id="bandHint"></p>
+        <div class="alias-box" id="aliasBox" hidden>
+          <div class="alias-box__head">
+            <span class="alias-box__title">Dobramento de frequência (aliasing)</span>
+            <span class="mono note" id="aliasZoneTag">Z2</span>
+          </div>
+          <canvas id="foldingPreview" class="chart chart--folding-sm" width="320" height="150" aria-label="Diagrama de dobramento de frequência (aliasing)"></canvas>
+          <p class="note" id="aliasPreviewNote"></p>
+        </div>
+        <label class="field">Método
+          <select id="method">
+            <option value="flow" selected>Deslocamento (recomendado)</option>
+            <option value="phase">Fase (experimental)</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="sec" id="sec-gain">
+        <h2><span>4</span>Amplificação</h2>
+
+        <div class="slider">
+          <label for="gain">Ganho <i>α</i></label>
+          <output id="gainLabel" for="gain">50×</output>
+          <input id="gain" type="range" min="1" max="100" value="50">
+          <div class="slider__scale"><span>1×</span><span id="gainMax">100×</span></div>
+        </div>
+
+        <div class="slider" id="lambdaWrap">
+          <label for="lambda">Corte espacial <i>λ<sub>c</sub></i></label>
+          <output id="lambdaLabel" for="lambda">sem limite</output>
+          <input id="lambda" type="range" min="0" max="96" step="4" value="0">
+          <div class="slider__scale"><span>sem limite</span><span>96 px</span></div>
+          <p class="note" id="lambdaHint"></p>
+        </div>
+
+        <details class="more">
+          <summary>Aquisição e resolução</summary>
+          <div class="row2">
+            <label class="field">Amostragem (FPS)<input id="fps" type="number" value="32" min="1" max="240" step="0.01" inputmode="decimal"></label>
+            <label class="field">Câmera lenta (×)<input id="slow" type="number" value="1" min="1" max="16" step="0.1" inputmode="decimal"></label>
+          </div>
+          <p class="note">Com câmera lenta de 10×, uma vibração de 10 Hz aparece a 1 Hz no vídeo. A faixa acima é sempre em Hz reais.</p>
+          <label class="field">Resolução de cálculo
+            <select id="size"><option value="64">64 px</option><option value="128">128 px (celular)</option><option value="256" selected>256 px</option><option value="512">512 px (lento)</option></select>
+          </label>
+        </details>
+
+        <label id="confirmWrap" class="check" hidden><input id="confirm" type="checkbox"><span>Conferi os FPS e o fator de câmera lenta.</span></label>
+
+        <button id="run" class="btn btn--primary btn--block" type="button" disabled>Amplificar movimento</button>
+        <button id="cancel" class="btn btn--line btn--block btn--danger" type="button" hidden>Cancelar</button>
+        <progress id="progress" class="bar" value="0" max="1" hidden></progress>
+        <p id="status" class="status" role="status" aria-live="polite">Carregue um vídeo para começar.</p>
+      </section>
+    </aside>
+
+    <!-- Comparação -->
+    <section class="work" aria-label="Comparação">
+      <header class="work__head">
+        <h2>Comparação</h2>
+        <span class="state" id="state" data-tone="idle">Aguardando vídeo</span>
+      </header>
+
+      <div class="viewers">
+        <figure class="viewer">
+          <figcaption><span>Original</span><span class="viewer__tag" id="originalTag">desenhe aqui</span></figcaption>
+          <div class="screen">
+            <canvas id="original" width="512" height="384" aria-label="Vídeo original. Desenhe a região de interesse."></canvas>
+            <div id="emptyOriginal" class="empty">
+              <p>Nenhum vídeo carregado</p>
+              <div class="empty__cta"><button id="demoQuick" class="btn btn--light" type="button">Régua de demonstração</button><label for="file" class="btn btn--light">Importar vídeo</label></div>
+            </div>
+          </div>
+        </figure>
+        <figure class="viewer">
+          <figcaption><span>Amplificado</span><span class="viewer__tag" id="resultTag">sem resultado</span></figcaption>
+          <div class="screen">
+            <canvas id="result" width="512" height="384" aria-label="Vídeo amplificado. Toque para escolher o ponto de medição."></canvas>
+            <div id="emptyResult" class="empty"><p>O resultado aparece aqui</p></div>
+            <div id="proc" class="proc" hidden>
+              <p class="proc__stage" id="procStage">Lendo quadros</p>
+              <div class="proc__bar"><i id="procFill"></i></div>
+              <p class="proc__meta"><span id="procPct">0</span>% · <span id="procClock">0,0 s</span></p>
+            </div>
+          </div>
+        </figure>
+      </div>
+
+      <div class="transport">
+        <button id="play" class="btn btn--play" type="button" disabled aria-label="Reproduzir">▶</button>
+        <input id="timeline" type="range" min="0" max="63" value="0" disabled aria-label="Quadro">
+        <span id="time" class="mono">– / –</span>
+        <select id="speed" aria-label="Velocidade"><option value="1">1×</option><option value="0.5">0,5×</option><option value="0.25" selected>0,25×</option></select>
+        <label class="toggle"><input id="zoom" type="checkbox" checked> Zoom na região</label>
+      </div>
+
+      <dl class="readout">
+        <div><dt>Faixa</dt><dd id="bandMetric">2–6 Hz</dd></div>
+        <div><dt>Ganho</dt><dd id="gainMetric">50×</dd></div>
+        <div><dt>λ<sub>c</sub></dt><dd id="lambdaMetric">–</dd></div>
+        <div><dt>Δf</dt><dd id="resMetric">0,5 Hz</dd></div>
+        <div><dt>Tempo</dt><dd id="elapsed">–</dd></div>
+      </dl>
+
+      <p id="resultInfo" class="note"></p>
+      <div class="downloads">
+        <button id="export" class="btn btn--line" type="button" disabled>Baixar vídeo comparativo</button>
+        <button id="csv" class="btn btn--line" type="button" disabled>Baixar deslocamento (CSV)</button>
+        <button id="report" class="btn btn--line" type="button" disabled>Baixar parâmetros (JSON)</button>
+      </div>
+    </section>
+
+    <!-- Análise -->
+    <section class="work analysis" aria-label="Análise">
+      <header class="work__head">
+        <h2>Análise no ponto de medição</h2>
+        <p class="note" id="analysisHint">Toque no quadro amplificado para mudar o ponto.</p>
+      </header>
+
+      <div class="block">
+        <div class="block__head">
+          <h3>Fatia espaço-temporal</h3>
+          <div class="seg" role="group" aria-label="Orientação da linha">
+            <button type="button" class="seg__btn is-on" data-dir="v">Vertical</button>
+            <button type="button" class="seg__btn" data-dir="h">Horizontal</button>
+          </div>
+        </div>
+        <div class="slice">
+          <span>Original</span><canvas id="sliceOrig" width="640" height="110"></canvas>
+          <span>Amplificado</span><canvas id="sliceAmp" width="640" height="110"></canvas>
+          <span></span><div class="slice__axis"><span>0 s</span><span id="sliceEnd">tempo</span></div>
+        </div>
+        <p class="note" id="sliceInfo">Cada coluna é um quadro: a linha tracejada nos vídeos, empilhada ao longo do tempo.</p>
+      </div>
+
+      <div class="charts">
+        <div class="block">
+          <div class="block__head">
+            <h3>Deslocamento</h3>
+            <select id="axis" class="select--sm" aria-label="Direção">
+              <option value="auto">Direção automática</option>
+              <option value="dy">Vertical</option>
+              <option value="dx">Horizontal</option>
+            </select>
+          </div>
+          <canvas id="trace" class="chart" width="640" height="220"></canvas>
+          <p class="note" id="traceInfo">Deslocamento filtrado na faixa, em pixels, antes do ganho. Sem calibração em mm.</p>
+        </div>
+        <div class="block">
+          <div class="block__head"><h3>Espectro</h3><span class="mono note" id="peakTag">–</span></div>
+          <canvas id="spectrum" class="chart" width="640" height="220"></canvas>
+          <p class="note">Confere a frequência dominante do sinal já filtrado.</p>
+        </div>
+      </div>
+
+      <div class="block folding-block" id="foldingBlock">
+        <div class="block__head">
+          <h3>Diagrama de dobramento de frequência (aliasing)</h3>
+          <span class="mono note" id="foldingTag">–</span>
+        </div>
+        <canvas id="folding" class="chart chart--folding" width="640" height="200" aria-label="Diagrama de dobramento de frequência por zonas de Nyquist"></canvas>
+        <p class="note" id="foldingInfo">Relaciona a frequência aparente medida em [0, fs/2] às frequências reais candidatas nas zonas de Nyquist.</p>
+      </div>
+    </section>
+  </div>
+
+  <section class="about">
+    <div>
+      <h2>Para que serve</h2>
+      <p>Apoio à triagem e à investigação técnica. A forma de deflexão operacional (ODS) mostra como a estrutura se desloca sob as cargas reais de operação, o que não é o mesmo que uma forma modal. A imagem amplificada não substitui medição calibrada: confirme frequência e amplitude com acelerômetro.</p>
+    </div>
+    <div>
+      <h2>Cuidados na gravação</h2>
+      <p>Use tripé, boa iluminação e uma região com textura. Reflexos, superfícies lisas, bordas do recorte e o começo e o fim do trecho podem gerar artefatos. Ganhos altos também ampliam ruído e tremor da câmera.</p>
+    </div>
+    <div>
+      <h2>Referências</h2>
+      <ul>
+        <li><a href="https://people.csail.mit.edu/mrub/papers/vidmag.pdf" target="_blank" rel="noopener">Wu et al., 2012. Eulerian Video Magnification</a></li>
+        <li><a href="https://people.csail.mit.edu/nwadhwa/phase-video/" target="_blank" rel="noopener">Wadhwa et al., 2013. Phase-Based Video Motion Processing</a></li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <img src="assets/ohmcinetica-logo.png" alt="OhmCinética" width="96" height="61">
+    <p>Vibra 0.8, protótipo da equipe OhmCinética para o Desafio Vibracon, HackatOhm CEFET 2026. Uso experimental, sem validação metrológica.</p>
+  </footer>
+</main>
+
+<video id="sourceVideo" muted playsinline preload="auto" hidden></video>
+<script src="probe.js?v=0.8.0"></script>
+<script src="engine.js?v=0.6.0"></script>
+<script src="motion.js?v=0.6.0"></script>
+<script src="charts.js?v=0.8.0"></script>
+<script src="analysis.js?v=0.8.0"></script>
+<script src="ui.js?v=0.8.0"></script>
+<script src="app.js?v=0.8.0"></script>
+</body>
+</html>
